@@ -4,7 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Radio Calico - Live Stream</title>
-    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    <link rel="icon" type="image/png" href="/favicon.ico">
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@1.4.12/dist/hls.min.js"></script>
     <style>
         * {
             margin: 0;
@@ -146,6 +147,90 @@
             display: none;
         }
 
+        .now-playing, .recently-played {
+            margin-top: 25px;
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 15px;
+            padding: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .now-playing-header, .recently-played-header {
+            font-size: 1.1em;
+            font-weight: bold;
+            margin-bottom: 15px;
+            color: #ffd93d;
+            text-align: center;
+        }
+
+        .track-info {
+            text-align: center;
+        }
+
+        .track-title {
+            font-size: 1.3em;
+            font-weight: bold;
+            margin-bottom: 8px;
+            color: white;
+        }
+
+        .track-artist {
+            font-size: 1.1em;
+            margin-bottom: 5px;
+            color: #ff9a9e;
+        }
+
+        .track-album {
+            font-size: 0.9em;
+            opacity: 0.8;
+            color: #fecfef;
+        }
+
+        .recent-tracks {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .recent-track {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+            padding: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-left: 3px solid #ff6b6b;
+        }
+
+        .recent-track-info {
+            flex: 1;
+        }
+
+        .recent-track-title {
+            font-size: 0.95em;
+            font-weight: bold;
+            color: white;
+            margin-bottom: 3px;
+        }
+
+        .recent-track-artist {
+            font-size: 0.85em;
+            color: #ff9a9e;
+        }
+
+        .recent-track-number {
+            font-size: 0.8em;
+            color: #ffd93d;
+            font-weight: bold;
+            min-width: 20px;
+        }
+
+        .loading-tracks {
+            text-align: center;
+            color: #ffd93d;
+            font-style: italic;
+        }
+
         @media (max-width: 600px) {
             .radio-container {
                 padding: 30px 20px;
@@ -184,7 +269,25 @@
         
         <div class="stream-info">
             HLS Stream: Live Audio<br>
-            Quality: Lossless
+            Quality: Lossless • 24-bit • 48kHz
+        </div>
+        
+        <!-- Now Playing Widget -->
+        <div class="now-playing">
+            <div class="now-playing-header">🎵 Now Playing</div>
+            <div class="track-info">
+                <div class="track-title" id="currentTrack">Loading...</div>
+                <div class="track-artist" id="currentArtist">Loading...</div>
+                <div class="track-album" id="currentAlbum">Loading...</div>
+            </div>
+        </div>
+        
+        <!-- Recently Played Widget -->
+        <div class="recently-played">
+            <div class="recently-played-header">🕒 Recently Played</div>
+            <div class="recent-tracks" id="recentTracks">
+                <div class="loading-tracks">Loading recent tracks...</div>
+            </div>
         </div>
     </div>
 
@@ -196,16 +299,131 @@
         const status = document.getElementById('status');
         
         const streamUrl = 'https://d3d4yli4hf5bmh.cloudfront.net/hls/live.m3u8';
+        const metadataUrl = 'https://d3d4yli4hf5bmh.cloudfront.net/metadatav2.json';
         let isPlaying = false;
         let hls;
+        let metadataInterval;
+
+        // Fetch and update metadata
+        async function fetchMetadata() {
+            try {
+                console.log('Fetching metadata from:', metadataUrl);
+                const response = await fetch(metadataUrl, {
+                    method: 'GET',
+                    cache: 'no-cache'
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                console.log('Metadata received:', data);
+                updateNowPlaying(data);
+                updateRecentlyPlayed(data);
+            } catch (error) {
+                console.error('Error fetching metadata:', error);
+                updateNowPlaying(null);
+            }
+        }
+
+        // Update now playing information
+        function updateNowPlaying(data) {
+            const trackTitle = document.getElementById('currentTrack');
+            const trackArtist = document.getElementById('currentArtist');
+            const trackAlbum = document.getElementById('currentAlbum');
+
+            if (data && data.title && data.artist) {
+                trackTitle.textContent = data.title || 'Unknown Track';
+                trackArtist.textContent = data.artist || 'Unknown Artist';
+                
+                let albumText = '';
+                if (data.album && data.date) {
+                    albumText = `${data.album} (${data.date})`;
+                } else if (data.album) {
+                    albumText = data.album;
+                } else if (data.date) {
+                    albumText = `(${data.date})`;
+                } else {
+                    albumText = 'Unknown Album';
+                }
+                trackAlbum.textContent = albumText;
+            } else {
+                trackTitle.textContent = 'Unable to load track info';
+                trackArtist.textContent = 'Radio Calico';
+                trackAlbum.textContent = 'Live Stream';
+            }
+        }
+
+        // Update recently played tracks
+        function updateRecentlyPlayed(data) {
+            const recentTracksContainer = document.getElementById('recentTracks');
+            
+            if (data) {
+                let html = '';
+                
+                // Build recent tracks from prev_artist_X and prev_title_X fields
+                for (let i = 1; i <= 5; i++) {
+                    const artist = data[`prev_artist_${i}`];
+                    const title = data[`prev_title_${i}`];
+                    
+                    if (artist && title) {
+                        html += `
+                            <div class="recent-track">
+                                <div class="recent-track-info">
+                                    <div class="recent-track-title">${title}</div>
+                                    <div class="recent-track-artist">${artist}</div>
+                                </div>
+                                <div class="recent-track-number">#${i}</div>
+                            </div>
+                        `;
+                    }
+                }
+                
+                if (html) {
+                    recentTracksContainer.innerHTML = html;
+                } else {
+                    recentTracksContainer.innerHTML = '<div class="loading-tracks">No recent tracks available</div>';
+                }
+            } else {
+                recentTracksContainer.innerHTML = '<div class="loading-tracks">No recent tracks available</div>';
+            }
+        }
+
+        // Start metadata updates
+        function startMetadataUpdates() {
+            fetchMetadata(); // Initial fetch
+            metadataInterval = setInterval(fetchMetadata, 10000); // Update every 10 seconds
+        }
+
+        // Stop metadata updates
+        function stopMetadataUpdates() {
+            if (metadataInterval) {
+                clearInterval(metadataInterval);
+                metadataInterval = null;
+            }
+        }
 
         // Initialize HLS
         function initializeHLS() {
             if (Hls.isSupported()) {
                 hls = new Hls({
+                    debug: false,
                     enableWorker: true,
-                    lowLatencyMode: true,
-                    backBufferLength: 90
+                    lowLatencyMode: false,
+                    backBufferLength: 30,
+                    maxBufferLength: 30,
+                    maxMaxBufferLength: 60,
+                    startLevel: -1,
+                    capLevelToPlayerSize: true,
+                    maxLoadingDelay: 4,
+                    maxBufferHole: 0.5,
+                    highBufferWatchdogPeriod: 2,
+                    nudgeOffset: 0.1,
+                    nudgeMaxRetry: 3,
+                    maxFragLookUpTolerance: 0.25,
+                    liveSyncDurationCount: 3,
+                    liveMaxLatencyDurationCount: 10
                 });
                 
                 hls.loadSource(streamUrl);
@@ -220,20 +438,30 @@
                 });
                 
                 hls.on(Hls.Events.ERROR, function(event, data) {
-                    console.error('HLS Error:', data);
                     if (data.fatal) {
+                        console.error('Fatal HLS Error:', data.type, data.details);
                         updateStatus('Stream error - please try again', 'error');
+                        
                         switch(data.type) {
                             case Hls.ErrorTypes.NETWORK_ERROR:
+                                console.log('Trying to recover network error...');
                                 hls.startLoad();
                                 break;
                             case Hls.ErrorTypes.MEDIA_ERROR:
+                                console.log('Trying to recover media error...');
                                 hls.recoverMediaError();
                                 break;
                             default:
+                                console.log('Destroying HLS instance...');
                                 hls.destroy();
+                                setTimeout(() => {
+                                    updateStatus('Reconnecting...', 'loading');
+                                    initializeHLS();
+                                }, 3000);
                                 break;
                         }
+                    } else {
+                        console.warn('Non-fatal HLS Error:', data.type, data.details);
                     }
                 });
                 
@@ -318,6 +546,7 @@
         // Initialize HLS when page loads
         document.addEventListener('DOMContentLoaded', function() {
             initializeHLS();
+            startMetadataUpdates();
         });
 
         // Cleanup on page unload
@@ -325,6 +554,7 @@
             if (hls) {
                 hls.destroy();
             }
+            stopMetadataUpdates();
         });
     </script>
 </body>
