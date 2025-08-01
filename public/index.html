@@ -1,1 +1,331 @@
-<\!DOCTYPE html><html><head><title>Static Files Work\!</title></head><body><h2>Static file serving is working</h2><p>This file is served from the public/ directory</p></body></html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Radio Calico - Live Stream</title>
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+        }
+
+        .radio-container {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 40px;
+            text-align: center;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            max-width: 500px;
+            width: 90%;
+        }
+
+        .logo {
+            font-size: 2.5em;
+            font-weight: bold;
+            margin-bottom: 10px;
+            background: linear-gradient(45deg, #ff9a9e, #fecfef);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .tagline {
+            font-size: 1.1em;
+            margin-bottom: 30px;
+            opacity: 0.9;
+        }
+
+        .player-controls {
+            margin: 30px 0;
+        }
+
+        .play-button {
+            background: linear-gradient(45deg, #ff6b6b, #ee5a6f);
+            border: none;
+            border-radius: 50%;
+            width: 80px;
+            height: 80px;
+            color: white;
+            font-size: 2em;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(238, 90, 111, 0.4);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 20px;
+        }
+
+        .play-button:hover {
+            transform: scale(1.1);
+            box-shadow: 0 6px 20px rgba(238, 90, 111, 0.6);
+        }
+
+        .play-button:active {
+            transform: scale(0.95);
+        }
+
+        .volume-control {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+            margin: 20px 0;
+        }
+
+        .volume-slider {
+            width: 150px;
+            height: 5px;
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 5px;
+            outline: none;
+            -webkit-appearance: none;
+        }
+
+        .volume-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 20px;
+            height: 20px;
+            background: #ff6b6b;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+
+        .volume-slider::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            background: #ff6b6b;
+            border-radius: 50%;
+            cursor: pointer;
+            border: none;
+        }
+
+        .status {
+            font-size: 1em;
+            margin-top: 20px;
+            padding: 10px;
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.1);
+            opacity: 0.8;
+        }
+
+        .status.loading {
+            color: #ffd93d;
+        }
+
+        .status.playing {
+            color: #6bcf7f;
+        }
+
+        .status.error {
+            color: #ff6b6b;
+        }
+
+        .stream-info {
+            margin-top: 20px;
+            font-size: 0.9em;
+            opacity: 0.7;
+        }
+
+        audio {
+            display: none;
+        }
+
+        @media (max-width: 600px) {
+            .radio-container {
+                padding: 30px 20px;
+            }
+            
+            .logo {
+                font-size: 2em;
+            }
+            
+            .play-button {
+                width: 70px;
+                height: 70px;
+                font-size: 1.8em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="radio-container">
+        <div class="logo">📻 Radio Calico</div>
+        <div class="tagline">Lossless Live Stream</div>
+        
+        <audio id="audioPlayer" controls preload="none"></audio>
+        
+        <div class="player-controls">
+            <button id="playButton" class="play-button">▶️</button>
+            
+            <div class="volume-control">
+                <span>🔊</span>
+                <input type="range" id="volumeSlider" class="volume-slider" min="0" max="100" value="50">
+                <span id="volumeValue">50%</span>
+            </div>
+        </div>
+        
+        <div id="status" class="status">Ready to play</div>
+        
+        <div class="stream-info">
+            HLS Stream: Live Audio<br>
+            Quality: Lossless
+        </div>
+    </div>
+
+    <script>
+        const audioPlayer = document.getElementById('audioPlayer');
+        const playButton = document.getElementById('playButton');
+        const volumeSlider = document.getElementById('volumeSlider');
+        const volumeValue = document.getElementById('volumeValue');
+        const status = document.getElementById('status');
+        
+        const streamUrl = 'https://d3d4yli4hf5bmh.cloudfront.net/hls/live.m3u8';
+        let isPlaying = false;
+        let hls;
+
+        // Initialize HLS
+        function initializeHLS() {
+            if (Hls.isSupported()) {
+                hls = new Hls({
+                    enableWorker: true,
+                    lowLatencyMode: true,
+                    backBufferLength: 90
+                });
+                
+                hls.loadSource(streamUrl);
+                hls.attachMedia(audioPlayer);
+                
+                hls.on(Hls.Events.MEDIA_ATTACHED, function() {
+                    updateStatus('Ready to play', '');
+                });
+                
+                hls.on(Hls.Events.MANIFEST_PARSED, function() {
+                    updateStatus('Stream loaded', 'loading');
+                });
+                
+                hls.on(Hls.Events.ERROR, function(event, data) {
+                    console.error('HLS Error:', data);
+                    if (data.fatal) {
+                        updateStatus('Stream error - please try again', 'error');
+                        switch(data.type) {
+                            case Hls.ErrorTypes.NETWORK_ERROR:
+                                hls.startLoad();
+                                break;
+                            case Hls.ErrorTypes.MEDIA_ERROR:
+                                hls.recoverMediaError();
+                                break;
+                            default:
+                                hls.destroy();
+                                break;
+                        }
+                    }
+                });
+                
+            } else if (audioPlayer.canPlayType('application/vnd.apple.mpegurl')) {
+                // Safari native HLS support
+                audioPlayer.src = streamUrl;
+                updateStatus('Ready to play (Safari native)', '');
+            } else {
+                updateStatus('HLS not supported in this browser', 'error');
+            }
+        }
+
+        // Play/Pause functionality
+        playButton.addEventListener('click', function() {
+            if (!isPlaying) {
+                audioPlayer.play().then(() => {
+                    isPlaying = true;
+                    playButton.innerHTML = '⏸️';
+                    updateStatus('Playing live stream...', 'playing');
+                }).catch(error => {
+                    console.error('Play error:', error);
+                    updateStatus('Error playing stream', 'error');
+                });
+            } else {
+                audioPlayer.pause();
+                isPlaying = false;
+                playButton.innerHTML = '▶️';
+                updateStatus('Paused', '');
+            }
+        });
+
+        // Volume control
+        volumeSlider.addEventListener('input', function() {
+            const volume = this.value / 100;
+            audioPlayer.volume = volume;
+            volumeValue.textContent = this.value + '%';
+        });
+
+        // Audio events
+        audioPlayer.addEventListener('loadstart', () => {
+            updateStatus('Loading stream...', 'loading');
+        });
+
+        audioPlayer.addEventListener('canplay', () => {
+            updateStatus('Ready to play', '');
+        });
+
+        audioPlayer.addEventListener('playing', () => {
+            isPlaying = true;
+            playButton.innerHTML = '⏸️';
+            updateStatus('Playing live stream...', 'playing');
+        });
+
+        audioPlayer.addEventListener('pause', () => {
+            isPlaying = false;
+            playButton.innerHTML = '▶️';
+            updateStatus('Paused', '');
+        });
+
+        audioPlayer.addEventListener('error', (e) => {
+            updateStatus('Playback error', 'error');
+            console.error('Audio error:', e);
+        });
+
+        audioPlayer.addEventListener('stalled', () => {
+            updateStatus('Buffering...', 'loading');
+        });
+
+        audioPlayer.addEventListener('waiting', () => {
+            updateStatus('Buffering...', 'loading');
+        });
+
+        // Status update function
+        function updateStatus(message, type) {
+            status.textContent = message;
+            status.className = 'status ' + type;
+        }
+
+        // Initialize volume
+        audioPlayer.volume = 0.5;
+
+        // Initialize HLS when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeHLS();
+        });
+
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', function() {
+            if (hls) {
+                hls.destroy();
+            }
+        });
+    </script>
+</body>
+</html>

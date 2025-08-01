@@ -4,7 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-radiocalico is a Node.js web application built with Express.js and SQLite, designed as a local development server for website prototyping.
+radiocalico is an online radio station demo built with Express.js and SQLite. The main page features a radio player that streams lossless HLS audio directly in the browser.
+
+**GitHub Repository**: https://github.com/ThomBator/radiocalico
 
 ## Development Commands
 
@@ -25,9 +27,11 @@ sqlite3 database.db
 ## Architecture
 
 ### Technology Stack
+- **Frontend**: HTML5 audio player with HLS.js library for streaming
 - **Backend**: Express.js server with JSON middleware
 - **Database**: SQLite with automatic table creation
 - **Static Files**: Served from `public/` directory
+- **Streaming**: HLS (HTTP Live Streaming) support with error recovery
 - **Port**: 3000 (hardcoded)
 
 ### Database Schema
@@ -42,15 +46,23 @@ CREATE TABLE users (
 ```
 
 ### API Endpoints
-- `GET /` - Development status page with navigation links
+- `GET /` - Main radio player interface (serves `public/index.html`)
 - `GET /api/users` - Retrieve all users (JSON)
 - `POST /api/users` - Create user (expects `{name, email}` in request body)
 - `GET /test` - Database connectivity test (creates test user and returns all users)
 
+### Radio Player Features
+- **HLS Stream**: `https://d3d4yli4hf5bmh.cloudfront.net/hls/live.m3u8`
+- **Browser Compatibility**: HLS.js for modern browsers, native Safari support
+- **Audio Controls**: Play/pause button and volume slider
+- **Status Updates**: Real-time stream status (loading, playing, error handling)
+- **Error Recovery**: Automatic retry for network and media errors
+- **Responsive Design**: Mobile-friendly interface
+
 ### File Structure
 - `server.js` - Main application server (single-file architecture)
 - `database.db` - SQLite database file (auto-created)
-- `public/` - Static files directory
+- `public/index.html` - Radio player interface (main page)
 - `package.json` - Standard Node.js project configuration
 
 ## Development Notes
@@ -64,8 +76,8 @@ Basic error responses are implemented for database operations. All SQL queries u
 ### Local SQLite Installation
 SQLite3 is installed locally in `~/local/bin/sqlite3` (version 3.46.0) and needs to be added to PATH for direct database access.
 
-### No Git Repository
-This project is not currently initialized as a git repository.
+### Git Repository
+This project is version controlled with Git and hosted on GitHub at https://github.com/ThomBator/radiocalico
 
 ### Missing Infrastructure
 - No testing framework configured

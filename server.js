@@ -23,21 +23,6 @@ const db = new sqlite3.Database('./database.db', (err) => {
   }
 });
 
-app.get('/', (req, res) => {
-  res.send(`
-    <html>
-      <head><title>Local Development Server</title></head>
-      <body>
-        <h1>🚀 Development Server Running!</h1>
-        <p>Express.js server with SQLite database is ready</p>
-        <ul>
-          <li><a href="/api/users">View Users API</a></li>
-          <li><a href="/test">Database Test</a></li>
-        </ul>
-      </body>
-    </html>
-  `);
-});
 
 app.get('/api/users', (req, res) => {
   db.all('SELECT * FROM users', [], (err, rows) => {
